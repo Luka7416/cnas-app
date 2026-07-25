@@ -1,0 +1,9 @@
+*.pem
+*.key
+.env
+*.log
+vendor/
+node_modules/
+.vscode/
+.idea/
+*.bak
