@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: php-service
+  namespace: cnas-app
+
+spec:
+  selector:
+    app: php-crud
+
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 80
+
+  type: NodePort
