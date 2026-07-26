@@ -3,19 +3,21 @@ kind: Deployment
 metadata:
   name: php-crud
   namespace: cnas-app
+  labels:
+    app: php-crud
 
 spec:
   replicas: 2
 
-  selector:
-    matchLabels:
-      app: php-crud
-
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
+      maxSurge: 0
+      maxUnavailable: 1
+
+  selector:
+    matchLabels:
+      app: php-crud
 
   template:
     metadata:
@@ -23,6 +25,17 @@ spec:
         app: php-crud
 
     spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - php-crud
+              topologyKey: kubernetes.io/hostname
+
       containers:
         - name: php-crud
           image: docker.io/lucyapple/php-crud:v1
@@ -31,6 +44,7 @@ spec:
           ports:
             - name: http
               containerPort: 80
+              protocol: TCP
 
           env:
             - name: DB_HOST
@@ -60,26 +74,27 @@ spec:
           readinessProbe:
             httpGet:
               path: /
-              port: http
-            initialDelaySeconds: 10
+              port: 80
+            initialDelaySeconds: 5
             periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 6
+            timeoutSeconds: 3
+            failureThreshold: 3
+            successThreshold: 1
 
           livenessProbe:
             httpGet:
               path: /
-              port: http
-            initialDelaySeconds: 30
+              port: 80
+            initialDelaySeconds: 15
             periodSeconds: 20
-            timeoutSeconds: 5
+            timeoutSeconds: 3
             failureThreshold: 3
+            successThreshold: 1
 
           resources:
             requests:
-              cpu: 100m
-              memory: 128Mi
-
+              cpu: "100m"
+              memory: "128Mi"
             limits:
-              cpu: 500m
-              memory: 256Mi
+              cpu: "500m"
+              memory: "256Mi"
