@@ -1,0 +1,181 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: cnas-grafana-pv
+spec:
+  capacity:
+    storage: 1Gi
+
+  accessModes:
+    - ReadWriteOnce
+
+  persistentVolumeReclaimPolicy: Retain
+
+  storageClassName: cnas-grafana-local
+
+  local:
+    path: /opt/cnas-grafana
+
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - vm-master
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cnas-grafana-pvc
+  namespace: monitoring
+spec:
+  accessModes:
+    - ReadWriteOnce
+
+  storageClassName: cnas-grafana-local
+
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cnas-grafana
+  namespace: monitoring
+spec:
+  type: NodePort
+
+  selector:
+    app: cnas-grafana
+
+  ports:
+    - name: http
+      protocol: TCP
+      port: 3000
+      targetPort: 3000
+      nodePort: 30300
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cnas-grafana
+  namespace: monitoring
+spec:
+  replicas: 1
+
+  strategy:
+    type: Recreate
+
+  selector:
+    matchLabels:
+      app: cnas-grafana
+
+  template:
+    metadata:
+      labels:
+        app: cnas-grafana
+
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: vm-master
+
+      securityContext:
+        fsGroup: 472
+        fsGroupChangePolicy: OnRootMismatch
+
+      containers:
+        - name: grafana
+          image: grafana/grafana-oss:11.5.2
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+
+          env:
+            - name: GF_SECURITY_ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: cnas-grafana-admin
+                  key: admin-user
+
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cnas-grafana-admin
+                  key: admin-password
+
+            - name: GF_USERS_ALLOW_SIGN_UP
+              value: "false"
+
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "false"
+
+            - name: GF_ANALYTICS_REPORTING_ENABLED
+              value: "false"
+
+            - name: GF_ANALYTICS_CHECK_FOR_UPDATES
+              value: "false"
+
+            - name: GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES
+              value: "false"
+
+            - name: GF_DATABASE_WAL
+              value: "true"
+
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+
+            limits:
+              cpu: 300m
+              memory: 384Mi
+
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+
+          volumeMounts:
+            - name: grafana-data
+              mountPath: /var/lib/grafana
+
+            - name: grafana-datasource
+              mountPath: /etc/grafana/provisioning/datasources
+              readOnly: true
+
+      volumes:
+        - name: grafana-data
+          persistentVolumeClaim:
+            claimName: cnas-grafana-pvc
+
+        - name: grafana-datasource
+          configMap:
+            name: cnas-grafana-datasource

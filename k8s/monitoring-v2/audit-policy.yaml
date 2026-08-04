@@ -1,0 +1,56 @@
+apiVersion: audit.k8s.io/v1
+kind: Policy
+
+omitStages:
+  - RequestReceived
+
+rules:
+  # Do not record routine API health checks
+  - level: None
+    nonResourceURLs:
+      - /healthz*
+      - /livez*
+      - /readyz*
+
+  # Record secret activity as metadata only.
+  # This prevents secret values from being stored in the audit log.
+  - level: Metadata
+    namespaces:
+      - cnas-app
+    resources:
+      - group: ""
+        resources:
+          - secrets
+
+  # Record full request and response details for changes
+  # made to application resources in cnas-app.
+  - level: RequestResponse
+    verbs:
+      - create
+      - update
+      - patch
+      - delete
+      - deletecollection
+    namespaces:
+      - cnas-app
+    resources:
+      - group: ""
+        resources:
+          - pods
+          - services
+          - persistentvolumeclaims
+          - configmaps
+
+      - group: apps
+        resources:
+          - deployments
+          - replicasets
+
+  # Record metadata for all other operations in cnas-app,
+  # including get, list and watch requests.
+  - level: Metadata
+    namespaces:
+      - cnas-app
+
+  # Record metadata for remaining Kubernetes API activity.
+  - level: Metadata
