@@ -180,7 +180,7 @@ pipeline {
                         kubectl rollout status \
                           deployment/${K8S_DEPLOYMENT} \
                           -n ${K8S_NAMESPACE} \
-                          --timeout=180s
+                          --timeout=300s
 
                         echo "Kubernetes deployment completed."
                     '''
